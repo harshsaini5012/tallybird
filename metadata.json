@@ -1,0 +1,6 @@
+{
+  "name": "Tallybird",
+  "description": "AI-powered invoice generator, OCR scanner, and interactive financial assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

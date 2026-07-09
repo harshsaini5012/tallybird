@@ -1,20 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Tallybird
 
-# Run and deploy your AI Studio app
+Intelligent Full-Stack Invoice Generator & Ledger Auditor.
 
-This contains everything you need to run your app locally.
+## Features
+- AI-powered invoice generation
+- Google Sign-In authentication
+- Invoice management & tracking
+- Expense tracking
+- AI Financial Assistant
+- Indian GST support
 
-View your app in AI Studio: https://ai.studio/apps/ae86c362-03ab-4262-9979-3b19c9620b00
+## Tech Stack
+- React + Vite + Tailwind CSS
+- Express.js + TypeScript
+- Firebase Authentication
+- Google Gemini AI
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Live App
+https://tallybird.onrender.com

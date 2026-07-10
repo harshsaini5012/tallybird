@@ -50,66 +50,76 @@ export default function InvoiceView({
   const handleDownloadPDF = async () => {
     const element = document.getElementById('printable-invoice-canvas');
     if (!element) return;
-    
-    setIsDownloadingPdf(true);
-    
-    // Find the scrollable container and cache its scroll position
-    const scrollContainer = document.querySelector('main');
-    const scrollTopBefore = scrollContainer ? scrollContainer.scrollTop : 0;
-    
-    try {
-      // Temporarily scroll to top to prevent cropped/blank spots in html2canvas render
-      if (scrollContainer) {
-        scrollContainer.scrollTop = 0;
-      }
-      
-      // Wait a micro-tick for layout settling
-      await new Promise(resolve => setTimeout(resolve, 100));
 
-      const canvas = await html2canvas(element, {
-        scale: 2, // Retain sharp vectors/text on higher PPI displays
+    setIsDownloadingPdf(true);
+
+    try {
+      // Clone the element so we can modify it without affecting the UI
+      const clone = element.cloneNode(true) as HTMLElement;
+
+      // Remove elements with print:hidden that shouldn't appear in PDF
+      clone.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+
+      // Show elements with hidden:print that should appear in PDF
+      clone.querySelectorAll('.hidden.print\\:block').forEach(el => {
+        (el as HTMLElement).style.display = 'block';
+      });
+
+      // Append clone off-screen for rendering
+      clone.style.position = 'fixed';
+      clone.style.top = '-9999px';
+      clone.style.left = '0';
+      clone.style.width = '850px';
+      clone.style.background = '#ffffff';
+      clone.style.padding = '40px';
+      clone.style.zIndex = '-1';
+      document.body.appendChild(clone);
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const canvas = await html2canvas(clone, {
+        scale: 2,
         useCORS: true,
-        allowTaint: false, // Must be false when useCORS is true to avoid security/contamination errors on toDataURL
+        allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
-        windowWidth: element.clientWidth || 850,
-        windowHeight: element.clientHeight || 1200
+        windowWidth: 850,
+        width: clone.scrollWidth,
+        height: clone.scrollHeight,
       });
-      
+
+      document.body.removeChild(clone);
+
       const imgData = canvas.toDataURL('image/png');
-      
-      const imgWidth = 210; // A4 width in mm
-      const pageHeight = 297; // A4 height in mm
+      const imgWidth = 210;
+      const pageHeight = 297;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
-      
+
       const pdf = new jsPDF('p', 'mm', 'a4');
       let position = 0;
-      
+
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
+
+      while (heightLeft > 0) {
+        position = -(imgHeight - heightLeft);
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
       }
-      
+
       pdf.save(`Invoice-${invoice.invoiceNumber}.pdf`);
     } catch (err) {
       console.error('PDF generation error:', err);
-      alert('Failed to generate PDF. Please use the "Print / PDF" button to print/save.');
+      alert('Failed to generate PDF. Please use Print / Save instead.');
     } finally {
-      // Restore the user's scroll position
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollTopBefore;
-      }
       setIsDownloadingPdf(false);
     }
   };
+
 
   const daysLeft = Math.ceil(
     (new Date(invoice.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)

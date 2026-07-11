@@ -1,19 +1,24 @@
 import React, { useState, useRef } from 'react';
-import { 
-  Sparkles, 
-  UploadCloud, 
-  FileText, 
-  Check, 
-  AlertCircle, 
-  ArrowRight, 
-  FileCode, 
-  Image as ImageIcon 
+import {
+  Sparkles,
+  UploadCloud,
+  FileText,
+  Check,
+  AlertCircle,
+  ArrowRight,
+  FileCode,
+  Image as ImageIcon,
+  File as FileIcon
 } from 'lucide-react';
 import { Invoice } from '../types';
 
 interface AIScannerProps {
   onImport: (scannedData: Partial<Invoice>) => void;
 }
+
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
+const isAcceptedFile = (f: File) =>
+  ACCEPTED_TYPES.includes(f.type) || f.name.toLowerCase().endsWith('.pdf');
 
 export default function AIScanner({ onImport }: AIScannerProps) {
   const [dragActive, setDragActive] = useState(false);
@@ -26,7 +31,6 @@ export default function AIScanner({ onImport }: AIScannerProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle drag events
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -37,50 +41,47 @@ export default function AIScanner({ onImport }: AIScannerProps) {
     }
   };
 
-  // Convert File to Base64 helper
   const convertFileToBase64 = (selectedFile: File) => {
     const reader = new FileReader();
     reader.readAsDataURL(selectedFile);
     reader.onload = () => {
       const result = reader.result as string;
-      // Extract only the base64 code, remove the mime type header
       const base64Code = result.split(',')[1] || '';
       setFileBase64(base64Code);
     };
     reader.onerror = (error) => {
       console.error('File conversion error:', error);
+      setScanError('Failed to read the selected file. Please try again.');
     };
   };
 
-  // Handle drop events
+  const acceptFile = (selectedFile: File) => {
+    if (isAcceptedFile(selectedFile)) {
+      if (selectedFile.size > 15 * 1024 * 1024) {
+        setScanError('File is too large. Please upload a file under 15MB.');
+        return;
+      }
+      setFile(selectedFile);
+      convertFileToBase64(selectedFile);
+      setScanError(null);
+    } else {
+      setScanError('Unsupported file type. Please upload a PNG, JPEG, WebP image, or a PDF document.');
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type.startsWith('image/')) {
-        setFile(droppedFile);
-        convertFileToBase64(droppedFile);
-        setScanError(null);
-      } else {
-        setScanError('Please select a valid invoice image file (PNG or JPEG).');
-      }
+      acceptFile(e.dataTransfer.files[0]);
     }
   };
 
-  // Handle file select
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.type.startsWith('image/')) {
-        setFile(selectedFile);
-        convertFileToBase64(selectedFile);
-        setScanError(null);
-      } else {
-        setScanError('Please select a valid invoice image file (PNG or JPEG).');
-      }
+      acceptFile(e.target.files[0]);
     }
   };
 
@@ -90,12 +91,14 @@ export default function AIScanner({ onImport }: AIScannerProps) {
     setExtractedData(null);
     setScanError(null);
     setTextContext('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Execute scan using server endpoint
+  const isPdf = file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
+
   const handleScan = async () => {
     if (!fileBase64 && !textContext.trim()) {
-      setScanError('Please upload an image or paste invoice text context first.');
+      setScanError('Please upload a file or paste invoice text context first.');
       return;
     }
 
@@ -114,7 +117,7 @@ export default function AIScanner({ onImport }: AIScannerProps) {
         },
         body: JSON.stringify({
           base64: fileBase64 || undefined,
-          mimeType: file ? file.type : undefined,
+          mimeType: file ? (file.type || 'application/pdf') : undefined,
           text: textContext.trim() || undefined
         })
       });
@@ -146,22 +149,20 @@ export default function AIScanner({ onImport }: AIScannerProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        {/* Left column: Upload form or Text Entry */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
             <h2 className="text-base font-bold text-slate-900">Upload Invoice Statement</h2>
 
-            {/* Drag & Drop Canvas */}
             {!file ? (
-              <div 
+              <div
                 onDragEnter={handleDrag}
                 onDragOver={handleDrag}
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[220px] ${
-                  dragActive 
-                    ? 'border-indigo-500 bg-indigo-50/20' 
+                  dragActive
+                    ? 'border-indigo-500 bg-indigo-50/20'
                     : 'border-slate-200 hover:border-indigo-500 hover:bg-slate-50/30'
                 }`}
               >
@@ -169,58 +170,65 @@ export default function AIScanner({ onImport }: AIScannerProps) {
                   type="file"
                   ref={fileInputRef}
                   className="hidden"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,application/pdf,.pdf"
                   onChange={handleFileChange}
                 />
                 <UploadCloud className="w-10 h-10 text-slate-400 mb-3 animate-bounce" style={{ animationDuration: '3s' }} />
-                <span className="font-bold text-slate-700 text-sm">Drag and drop invoice image here</span>
-                <span className="text-xs text-slate-400 mt-1.5 block">Supports PNG, JPEG, and WebP</span>
-                <button 
-                  type="button" 
+                <span className="font-bold text-slate-700 text-sm">Drag and drop invoice file here</span>
+                <span className="text-xs text-slate-400 mt-1.5 block">Supports PNG, JPEG, WebP, and PDF (up to 15MB)</span>
+                <button
+                  type="button"
                   className="mt-4 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold transition"
                 >
                   Browse Files
                 </button>
               </div>
             ) : (
-              /* Selected Image Preview */
               <div className="border border-slate-150 rounded-xl overflow-hidden p-3 bg-slate-50 relative">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
-                    <ImageIcon className="w-5 h-5" />
+                    {isPdf ? <FileIcon className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="font-bold text-slate-800 text-sm block truncate">{file.name}</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">{(file.size / 1024).toFixed(0)} KB</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      {(file.size / 1024).toFixed(0)} KB {isPdf ? '· PDF Document' : '· Image'}
+                    </span>
                   </div>
-                  <button 
+                  <button
                     onClick={handleClear}
                     className="px-2 py-1 text-[10px] border border-slate-200 text-slate-500 hover:bg-white rounded-lg font-semibold transition"
                   >
                     Clear File
                   </button>
                 </div>
-                {/* Embedded preview thumbnail */}
-                {fileBase64 && (
+
+                {fileBase64 && !isPdf && (
                   <div className="mt-3.5 border border-slate-200/50 rounded-lg overflow-hidden h-36 bg-white flex items-center justify-center">
-                    <img 
-                      src={`data:${file.type};base64,${fileBase64}`} 
-                      alt="Invoice source" 
+                    <img
+                      src={`data:${file.type};base64,${fileBase64}`}
+                      alt="Invoice source"
                       className="max-h-full max-w-full object-contain"
                     />
+                  </div>
+                )}
+
+                {fileBase64 && isPdf && (
+                  <div className="mt-3.5 border border-slate-200/50 rounded-lg overflow-hidden h-36 bg-white flex flex-col items-center justify-center gap-2 text-slate-400">
+                    <FileIcon className="w-10 h-10 text-rose-400" />
+                    <span className="text-[11px] font-semibold text-slate-500">PDF ready to scan</span>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Raw Text Box Alternative */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
                   OR: Paste Invoice Text / Email Content
                 </label>
                 {textContext && (
-                  <button 
+                  <button
                     onClick={() => setTextContext('')}
                     className="text-[10px] text-indigo-600 hover:underline"
                   >
@@ -237,7 +245,6 @@ export default function AIScanner({ onImport }: AIScannerProps) {
               />
             </div>
 
-            {/* Error notifications */}
             {scanError && (
               <div className="bg-rose-50 border border-rose-100 text-rose-800 p-3.5 rounded-xl flex items-start gap-2.5 text-xs font-medium">
                 <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
@@ -245,13 +252,12 @@ export default function AIScanner({ onImport }: AIScannerProps) {
               </div>
             )}
 
-            {/* Scan Activation Button */}
             <button
               onClick={handleScan}
               disabled={isScanning || (!fileBase64 && !textContext.trim())}
               className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition ${
-                isScanning 
-                  ? 'bg-indigo-500/20 text-indigo-400 cursor-not-allowed' 
+                isScanning
+                  ? 'bg-indigo-500/20 text-indigo-400 cursor-not-allowed'
                   : (!fileBase64 && !textContext.trim())
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-md shadow-indigo-100'
@@ -272,7 +278,6 @@ export default function AIScanner({ onImport }: AIScannerProps) {
           </div>
         </div>
 
-        {/* Right column: Extraction results preview */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col justify-between min-h-[400px]">
             <div>
@@ -289,13 +294,11 @@ export default function AIScanner({ onImport }: AIScannerProps) {
               </div>
 
               {isScanning ? (
-                /* Scanning Micro-animation */
                 <div className="flex flex-col items-center justify-center text-center py-16 h-full flex-1">
                   <div className="relative mb-6">
                     <div className="w-16 h-16 border-4 border-indigo-100 rounded-full flex items-center justify-center">
                       <Sparkles className="w-7 h-7 text-indigo-600 animate-pulse" />
                     </div>
-                    {/* Floating rings */}
                     <div className="absolute inset-0 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                   </div>
                   <span className="font-bold text-slate-800 text-sm">Processing with Google Gemini AI</span>
@@ -304,7 +307,6 @@ export default function AIScanner({ onImport }: AIScannerProps) {
                   </span>
                 </div>
               ) : extractedData ? (
-                /* Extraction Preview Layout */
                 <div className="space-y-5 flex-1 min-h-0 overflow-y-auto">
                   <div className="grid grid-cols-2 gap-4 border-b border-slate-50 pb-4">
                     <div>
@@ -333,7 +335,6 @@ export default function AIScanner({ onImport }: AIScannerProps) {
                     </div>
                   </div>
 
-                  {/* Items Sub-table */}
                   <div className="space-y-2">
                     <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Extracted Line Items ({extractedData.items?.length || 0})</span>
                     <div className="space-y-2 max-h-[160px] overflow-y-auto border border-slate-50 rounded-xl p-2 bg-slate-50/30">
@@ -359,19 +360,17 @@ export default function AIScanner({ onImport }: AIScannerProps) {
                   </div>
                 </div>
               ) : (
-                /* Unscanned Empty State */
                 <div className="flex flex-col items-center justify-center text-center py-16 h-full flex-1">
                   <div className="p-4 bg-slate-50 rounded-full mb-3 text-slate-400">
                     <FileText className="w-8 h-8" />
                   </div>
                   <h3 className="font-bold text-slate-700 text-sm">Ready for Analysis</h3>
                   <p className="text-xs text-slate-400 mt-1.5 max-w-xs leading-relaxed">
-                    Provide an invoice picture statement or textual email context and trigger the scanner to view structured details here.
+                    Provide an invoice image, PDF statement, or textual email context and trigger the scanner to view structured details here.
                   </p>
                 </div>
               )}
 
-              {/* Import button */}
               {extractedData && (
                 <div className="pt-6 border-t border-slate-100 mt-5">
                   <button

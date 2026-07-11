@@ -340,7 +340,7 @@ app.post('/api/ai/scan', async (req, res) => {
     let parts: any[] = [];
     if (base64 && mimeType) parts.push({ inlineData: { data: base64, mimeType } });
     parts.push({ text: `Analyze the invoice and extract details as JSON with fields: invoiceNumber, date, dueDate, senderDetails (name,email,address,phone), clientDetails (name,email,address,phone), items (name,description,quantity,price,discount,tax), notes, currency, paymentTerms.` });
-    const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: { parts }, config: { responseMimeType: 'application/json' } });
+    const response = await ai.models.generateContent({ model: 'gemini-3.5-flash', contents: { parts }, config: { responseMimeType: 'application/json' } });
     res.json(JSON.parse(response.text?.trim() || '{}'));
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to scan invoice.' });
@@ -353,7 +353,7 @@ app.post('/api/ai/generate-invoice', async (req, res) => {
     if (!prompt) { res.status(400).json({ error: 'Prompt is required.' }); return; }
     const ai = getGeminiClient();
     const systemInstruction = `You are Tallybird, an expert financial billing system. Convert the user's natural language request into a highly structured invoice JSON. Default sender: ${JSON.stringify(companyDetails || {})}. If Indian GST mentioned set enableIndianGST true. Return JSON with: invoiceNumber, date, dueDate, currency, paymentTerms, notes, enableIndianGST, senderDetails, clientDetails, items (with name,quantity,price,discount,tax,hsnSac), terms array.`;
-    const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents: prompt, config: { systemInstruction, responseMimeType: 'application/json' } });
+    const response = await ai.models.generateContent({ model: 'gemini-3.5-flash', contents: prompt, config: { systemInstruction, responseMimeType: 'application/json' } });
     res.json(JSON.parse(response.text?.trim() || '{}'));
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to generate invoice.' });
@@ -370,7 +370,7 @@ app.post('/api/ai/chat', async (req, res) => {
     const systemInstruction = `You are Tallybird, a professional financial assistant. Current Date: ${new Date().toISOString().split('T')[0]}. User invoices:\n${invoicesContext || 'No invoices yet.'}`;
     const ai = getGeminiClient();
     const contents = messages.map((m: any) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] }));
-    const response = await ai.models.generateContent({ model: 'gemini-2.0-flash', contents, config: { systemInstruction } });
+    const response = await ai.models.generateContent({ model: 'gemini-3.5-flash', contents, config: { systemInstruction } });
     res.json({ content: response.text || "I couldn't compile a response." });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Financial Assistant unavailable.' });
